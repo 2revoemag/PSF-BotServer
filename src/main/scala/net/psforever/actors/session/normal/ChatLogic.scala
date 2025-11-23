@@ -142,6 +142,7 @@ class ChatLogic(val ops: ChatOperations, implicit val context: ActorContext) ext
         case "macro" => ops.customCommandMacro(session, params)
         case "progress" => ops.customCommandProgress(session, params)
         case "squad" => ops.customCommandSquad(params)
+        case "bot" => ops.customCommandBot(session)
         case _ =>
           // command was not handled
           sendResponse(

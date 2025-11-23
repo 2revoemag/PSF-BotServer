@@ -46,6 +46,7 @@ import net.psforever.types.ChatMessageType.{CMT_GMOPEN, UNK_227, UNK_229}
 import net.psforever.types.{ChatMessageType, Cosmetic, ExperienceType, ImplantType, PlanetSideEmpire, PlanetSideGUID, Vector3}
 import net.psforever.util.{Config, PointOfInterest}
 import net.psforever.zones.Zones
+import net.psforever.actors.bot.BotManager
 
 trait ChatFunctions extends CommonSessionInterfacingFunctionality {
   def ops: ChatOperations
@@ -1408,6 +1409,22 @@ class ChatOperations(
       message.copy(recipient = session.player.Name),
       toChannel
     )
+  }
+
+  def customCommandBot(
+                                session: Session
+                              ): Boolean = {
+    val zone = session.zone
+    val player = session.player
+    val spawnPos = player.Position + Vector3(2, 2, 0) // Spawn slightly offset from player
+
+    // Use the zone's persistent BotManager
+    zone.BotManager ! BotManager.SpawnBot(player.Faction, spawnPos)
+
+    sendResponse(
+      ChatMsg(CMT_GMOPEN, wideContents = false, "Server", s"Spawning bot at $spawnPos", None)
+    )
+    true
   }
 
   override protected[session] def stop(): Unit = {

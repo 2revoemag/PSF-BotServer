@@ -20,6 +20,7 @@ import org.log4s.Logger
 import net.psforever.services.avatar.AvatarService
 import net.psforever.services.local.LocalService
 import net.psforever.services.vehicle.VehicleService
+import net.psforever.actors.bot.BotManager
 
 import scala.collection.concurrent.TrieMap
 import scala.collection.mutable.ListBuffer
@@ -142,6 +143,8 @@ class Zone(val id: String, val map: ZoneMap, zoneNumber: Int) {
   /**
     */
   private var population: ActorRef = Default.Actor
+
+  private var botManager: ActorRef = Default.Actor
 
   private var buildings: PairMap[Int, Building] = PairMap.empty[Int, Building]
 
@@ -450,6 +453,8 @@ class Zone(val id: String, val map: ZoneMap, zoneNumber: Int) {
   def Transport: ActorRef = transport
 
   def Population: ActorRef = population
+
+  def BotManager: ActorRef = botManager
 
   def Buildings: Map[Int, Building] = buildings
 
@@ -1384,6 +1389,7 @@ object Zone {
         zone.projectiles = context.actorOf(Props(classOf[ZoneProjectileActor], zone, zone.projectileList), s"$id-projectiles")
         zone.transport = context.actorOf(Props(classOf[ZoneVehicleActor], zone, zone.vehicles, zone.linkDynamicTurretWeapon), s"$id-vehicles")
         zone.population = context.actorOf(Props(classOf[ZonePopulationActor], zone, zone.players, zone.corpses), s"$id-players")
+        zone.botManager = context.actorOf(BotManager.props(zone), s"$id-bots")
         zone.projector = context.actorOf(
           Props(classOf[ZoneHotSpotDisplay], zone, zone.hotspots, 15 seconds, zone.hotspotHistory, 60 seconds),
           s"$id-hotspots"

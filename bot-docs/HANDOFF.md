@@ -180,17 +180,23 @@ zone.AvatarEvents ! AvatarServiceMessage(
 - [x] Bot takes damage from players (PlayerControl works!)
 - [x] Bot movement (10 tick/sec, random wandering, PlayerState broadcasts)
 - [x] Multiple bots work independently
+- [x] Bot loadout/equipment (POC - proper backpack drops on death)
+- [x] Bot shooting with two-force accuracy system (adjustment vs recoil)
+- [x] Target acquisition with distance-based recognition time
+- [x] Death/respawn cycle with weighted random delays (1-90 sec distribution)
+- [x] Burst fire control (resets after 15-25 shots)
 
 ### KNOWN ISSUES (Expected for POC)
-- No backpack on death (likely because bot has no items/loadout)
 - Walks through walls (no collision detection)
 - No Z-height adjustment (melts into stairs, terrain)
-- Walk speed slightly fast for animation (4 units/sec, try 3)
+- Bots spawn as whatever faction the spawning player is (BUG - being fixed)
+
+### IN PROGRESS
+- [ ] Faction-specific spawn commands (!botnc, !bottr, !botvs)
+  - Currently `!bot` spawns bots as the player's faction
+  - Need separate commands to spawn specific empire bots
 
 ### NOT YET IMPLEMENTED
-- [ ] Bot loadout/equipment
-- [ ] Bot shooting (weapon fire broadcasts)
-- [ ] Bot death/respawn cycle
 - [ ] Terrain following (Z height from map data)
 - [ ] Collision avoidance
 - [ ] Pathfinding
@@ -198,6 +204,7 @@ zone.AvatarEvents ! AvatarServiceMessage(
 - [ ] Celebration coordination system
 - [ ] Vengeance/attitude system
 - [ ] Population scaling (spawn/despawn based on real players)
+- [ ] Bot class differentiation (loadouts will be revised for prod)
 
 ---
 
@@ -298,16 +305,27 @@ If the user says **"update the docs"**:
 
 ## Last Session Summary
 
-**Date**: 2024 (context creation date)
+**Date**: 2025-11-23
 
-**Accomplished**:
-- Analyzed PSF-LoginServer codebase architecture
-- Mapped spawn/broadcast/GUID flows
-- Created behavioral spec from user's notes
-- Sketched BotActor and BotSpawner concepts
-- Documented key files with line numbers
+**Recent Accomplishments**:
+- POC fully working: bots spawn, move, fight, die, respawn
+- Bot loadout/equipment working (proper backpack drops)
+- Two-force accuracy system implemented (adjustment vs recoil)
+- Death/respawn cycle with weighted random delays
+- Target acquisition with distance-based recognition time
+
+**Current Work**:
+- Fixing faction bug: bots spawn as player's faction instead of specified faction
+- Adding faction-specific spawn commands: `!botnc`, `!bottr`, `!botvs`
+- Files being modified:
+  - `src/main/scala/net/psforever/actors/session/support/ChatOperations.scala` - add command cases
+  - `src/main/scala/net/psforever/actors/bot/BotManager.scala` - use passed faction parameter
+
+**DB Notes**:
+- Bot characters use DB IDs 2-301 (xxBOTxxTestBot1 through xxBOTxxTestBot300)
+- NCBotfighter character in DB is showing as VS (DB quirk, not a blocker)
 
 **Next Steps**:
-- Set up dev environment
-- Start Phase 1: spawn a static bot
-- OR wait for dev team answers on open questions
+- Complete faction-specific spawn commands
+- Terrain following (Z height)
+- Population scaling

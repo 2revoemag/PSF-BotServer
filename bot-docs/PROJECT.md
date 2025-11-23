@@ -106,7 +106,7 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 
 ## Status
 
-**Phase**: POC Complete - Bots Spawn and Move!
+**Phase**: POC Complete - Bots Spawn, Move, Fight, Die & Respawn!
 
 ### Completed
 - [x] Clone PSF-LoginServer codebase
@@ -120,6 +120,11 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 - [x] Verify baseline compile and server run
 - [x] **Phase 1: Spawn a static bot** - WORKING!
 - [x] **Phase 2: Bot moves and broadcasts** - WORKING!
+- [x] **Phase 3: Bot detects enemies and shoots** - WORKING!
+- [x] Bot loadout/equipment (POC - proper backpack drops)
+- [x] Death/respawn cycle with weighted random delays
+- [x] Two-force accuracy system (adjustment vs recoil)
+- [x] Target recognition time based on distance
 
 ### Resolved Questions (Through Trial & Error)
 - Avatar IDs must be POSITIVE (900000+), not negative
@@ -127,10 +132,10 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 - Must use `registerAvatar()` not `registerPlayer()` (locker needs GUID)
 
 ### Next Steps
-- [ ] Bot loadout/equipment (no backpack on death without items)
-- [ ] Phase 3: Bot detects enemies and shoots
-- [ ] Death/respawn cycle
+- [ ] Faction-specific spawn commands (!botnc, !bottr, !botvs) - **IN PROGRESS**
 - [ ] Terrain following (Z height)
+- [ ] Bot class differentiation (loadouts will be revised for prod)
+- [ ] Population scaling (auto-spawn/despawn based on real players)
 
 ---
 

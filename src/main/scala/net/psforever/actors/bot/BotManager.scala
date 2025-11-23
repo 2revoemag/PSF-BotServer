@@ -153,7 +153,8 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = position
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
-    // DON'T set DrawnSlot here - spawn with hands down, draw weapon after delay
+    // Set DrawnSlot BEFORE Spawn() so LoadPlayer packet includes weapon in hand
+    player.DrawnSlot = 2
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -197,7 +198,7 @@ class BotManager(zone: Zone) extends Actor {
       )
     )
 
-    // Don't broadcast weapon draw yet - wait for readyTick to let client fully load
+    // Weapon is already drawn (DrawnSlot set before LoadPlayer packet)
     // Initialize movement state
     val moveAngle = random.nextFloat() * 360f
     val moveState = MovementState(
@@ -206,9 +207,9 @@ class BotManager(zone: Zone) extends Actor {
       moveUntilTick = tickCount + 30 + random.nextInt(50)
     )
 
-    // Set readyTick 2 seconds from now (20 ticks) to let client fully load before combat
+    // Set readyTick 2 seconds from now (20 ticks) before bot can engage in combat
     val readyAt = tickCount + 20
-    bots(botId) = BotState(botId, name, avatar, player, botAvatarActor, moveState, CombatState(), player.Position, readyAt, weaponDrawn = false)
+    bots(botId) = BotState(botId, name, avatar, player, botAvatarActor, moveState, CombatState(), player.Position, readyAt)
     log.info(s"Bot '$name' spawned successfully with GUID ${player.GUID} (${bots.size} bots active, ${availableBotIds.size} available)")
   }
 
@@ -305,7 +306,8 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = info.spawnPosition
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
-    // DON'T set DrawnSlot here - spawn with hands down, draw weapon after delay
+    // Set DrawnSlot BEFORE Spawn() so LoadPlayer packet includes weapon in hand
+    player.DrawnSlot = 2
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -333,20 +335,8 @@ class BotManager(zone: Zone) extends Actor {
       if (player.isAlive) {
         var currentBotState = botState
 
-        // Check if bot is ready (spawn delay passed) and weapon not yet drawn
+        // Bot is ready for combat after spawn delay
         val isReady = tickCount >= botState.readyTick
-        if (isReady && !botState.weaponDrawn) {
-          // Set DrawnSlot to weapon slot 2 (suppressor), then broadcast
-          val previousSlot = player.DrawnSlot
-          player.DrawnSlot = 2
-          // Now broadcast the weapon draw - client has had time to load
-          zone.AvatarEvents ! AvatarServiceMessage(
-            zone.id,
-            AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, previousSlot)
-          )
-          log.info(s"${botState.name} has drawn a suppressor from its holster")
-          currentBotState = currentBotState.copy(weaponDrawn = true)
-        }
 
         // Only update combat and movement if AI is enabled AND bot is ready
         if (aiEnabled && isReady) {
@@ -377,7 +367,7 @@ class BotManager(zone: Zone) extends Actor {
             jump_thrust = false,
             is_cloaked = false,
             spectator = false,
-            weaponInHand = currentBotState.weaponDrawn
+            weaponInHand = true  // Weapon is always drawn (set at spawn)
           )
         )
       }
@@ -426,14 +416,29 @@ class BotManager(zone: Zone) extends Actor {
 
   /** Maximum engagement range in game units */
   private val MaxEngagementRange = 100f
-  /** Recognition time in ticks based on distance */
+  /**
+    * Recognition time in ticks based on distance.
+    * Minimum 2 seconds (20 ticks) after spotting target before firing.
+    * This gives players time to react when spotted.
+    */
   private def recognitionTimeTicks(distance: Float): Int = {
-    if (distance < 15f) 1                        // Near instant for close
-    else if (distance < 50f) 3 + random.nextInt(5)  // 0.3-0.8 sec for medium
-    else 10 + random.nextInt(10)                 // 1-2 sec for far
+    if (distance < 15f) 20                        // 2 seconds for close range
+    else if (distance < 50f) 20 + random.nextInt(5)  // 2-2.5 sec for medium
+    else 25 + random.nextInt(10)                 // 2.5-3.5 sec for far
   }
 
-  /** Find the closest enemy player in range */
+  /**
+    * Find the closest enemy player in range.
+    *
+    * TODO: LOS/Wall Shooting Limitation
+    * The Sidedness check below attempts to prevent shooting through walls by checking
+    * if bot and target are on the same "side" (interior vs exterior). However, this
+    * doesn't work reliably because bots don't go through the normal login flow that
+    * registers players with the zone's interior detection system. For POC, this is
+    * acceptable but a proper solution would require:
+    * - Implementing actual ray-tracing for LOS checks, OR
+    * - Properly registering bots with the interior detection system
+    */
   private def findTarget(botState: BotState): Option[Player] = {
     val player = botState.player
     val botFaction = botState.avatar.faction
@@ -445,7 +450,7 @@ class BotManager(zone: Zone) extends Actor {
         p.Faction != botFaction &&
         !p.Name.startsWith("xxBOTxx") && // Don't target other bots for now
         Vector3.Distance(player.Position, p.Position) <= MaxEngagementRange &&
-        Sidedness.equals(botSide, p.WhichSide) // Must be on same side of walls (LOS check)
+        Sidedness.equals(botSide, p.WhichSide) // Attempt at LOS check - see TODO above
       }
       .sortBy(p => Vector3.Distance(player.Position, p.Position))
       .headOption
@@ -719,8 +724,7 @@ object BotManager {
     movement: MovementState = MovementState(),
     combat: CombatState = CombatState(),
     spawnPosition: Vector3 = Vector3.Zero,
-    readyTick: Int = 0,         // Tick when bot is ready for combat (after spawn delay)
-    weaponDrawn: Boolean = false // Whether weapon draw has been broadcast to clients
+    readyTick: Int = 0  // Tick when bot is ready for combat (after 2-second spawn delay)
   )
 
   case class TapOutInfo(

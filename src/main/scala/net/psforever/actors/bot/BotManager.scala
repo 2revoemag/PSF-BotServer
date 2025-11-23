@@ -201,6 +201,15 @@ class BotManager(zone: Zone) extends Actor {
     )
 
     // Weapon is already drawn (DrawnSlot set before LoadPlayer packet)
+    // TEST: Start firing immediately to see if tracers appear
+    player.Holsters()(2).Equipment.collect { case t: Tool => t }.foreach { weapon =>
+      zone.LocalEvents ! LocalServiceMessage(
+        zone.id,
+        LocalAction.SendResponse(ChangeFireStateMessage_Start(weapon.GUID))
+      )
+      log.info(s"Bot '$name' weapon firing flag set for tracer test")
+    }
+
     // Initialize movement state
     val moveAngle = random.nextFloat() * 360f
     val moveState = MovementState(

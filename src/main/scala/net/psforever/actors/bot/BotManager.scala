@@ -362,16 +362,16 @@ class BotManager(zone: Zone) extends Actor {
             player.GUID,
             player.Position,
             player.Velocity,
-            player.Orientation.z,
-            0f,
-            player.Orientation.z,
+            player.Orientation.z,  // facingYaw - body direction
+            0f,                    // facingPitch
+            0f,                    // facingYawUpper - relative to body, 0 = looking straight ahead
             timestamp,
             is_crouching = false,
             is_jumping = false,
             jump_thrust = false,
             is_cloaked = false,
             spectator = false,
-            weaponInHand = true  // Weapon is always drawn (set at spawn)
+            weaponInHand = true    // Weapon is always drawn (set at spawn)
           )
         )
       }
@@ -538,7 +538,7 @@ class BotManager(zone: Zone) extends Actor {
         if (ticksSinceAcquired >= recognitionTime) {
           // Start firing if not already
           if (!combat.isFiring) {
-            startFiring(botState, targetPlayer.Name)
+            startFiring(botState, targetPlayer)  // Pass target for orientation calculation
             combat = combat.copy(isFiring = true, burstStartTick = tickCount, shotsFired = 0)
           }
 
@@ -578,11 +578,47 @@ class BotManager(zone: Zone) extends Actor {
     combat
   }
 
-  /** Broadcast that bot started firing - uses LocalEvents like turrets for proper client rendering */
-  private def startFiring(botState: BotState, targetName: String): Unit = {
-    getWeapon(botState.player).foreach { weapon =>
-      log.info(s"${botState.name} is attacking $targetName")
-      // Use LocalEvents like turrets do for proper tracer rendering
+  /**
+    * Broadcast that bot started firing.
+    * CRITICAL: Must update orientation and broadcast PlayerState BEFORE sending fire state,
+    * otherwise client will use stale orientation for tracer direction.
+    */
+  private def startFiring(botState: BotState, target: Player): Unit = {
+    val player = botState.player
+
+    // Calculate yaw to face target
+    val dx = target.Position.x - player.Position.x
+    val dy = target.Position.y - player.Position.y
+    val targetYaw = math.toDegrees(math.atan2(dx, dy)).toFloat
+
+    // Update bot's orientation to face target
+    player.Orientation = Vector3(0, 0, targetYaw)
+
+    // Broadcast PlayerState with correct orientation BEFORE fire state
+    // This ensures client has correct facing when fire state arrives
+    val timestamp = (System.currentTimeMillis() % 65536).toInt
+    zone.AvatarEvents ! AvatarServiceMessage(
+      zone.id,
+      AvatarAction.PlayerState(
+        player.GUID,
+        player.Position,
+        player.Velocity,
+        targetYaw,  // facingYaw - body direction
+        0f,         // facingPitch
+        0f,         // facingYawUpper - relative to body, 0 = looking straight
+        timestamp,
+        is_crouching = false,
+        is_jumping = false,
+        jump_thrust = false,
+        is_cloaked = false,
+        spectator = false,
+        weaponInHand = true
+      )
+    )
+
+    // NOW send fire state - client should have correct orientation
+    getWeapon(player).foreach { weapon =>
+      log.info(s"${botState.name} is attacking ${target.Name}")
       zone.LocalEvents ! LocalServiceMessage(
         zone.id,
         LocalAction.SendResponse(ChangeFireStateMessage_Start(weapon.GUID))

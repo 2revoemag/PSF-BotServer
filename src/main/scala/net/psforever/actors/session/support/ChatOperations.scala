@@ -1449,6 +1449,30 @@ class ChatOperations(
     true
   }
 
+  /**
+    * Log player coordinates to server log for arena/map data capture.
+    * Usage: !locrec [optional note]
+    * Output goes to server log (captured by /log) not to chat.
+    */
+  def customCommandLocRec(
+                           session: Session,
+                           params: Seq[String]
+                         ): Boolean = {
+    val player = session.player
+    val pos = player.Position
+    val note = if (params.nonEmpty && params.head.nonEmpty) params.mkString(" ") else ""
+    val noteStr = if (note.nonEmpty) s" | $note" else ""
+
+    // Log to server log (this gets captured by /log command)
+    log.info(s"LOCREC: ${player.Name} @ ${session.zone.id} | x=${pos.x} y=${pos.y} z=${pos.z}$noteStr")
+
+    // Also send confirmation to player
+    sendResponse(
+      ChatMsg(CMT_GMOPEN, wideContents = false, "Server", s"Logged: (${pos.x}, ${pos.y}, ${pos.z})$noteStr", None)
+    )
+    true
+  }
+
   override protected[session] def stop(): Unit = {
     silenceTimer.cancel()
     chatService ! ChatService.LeaveAllChannels(chatServiceAdapter)

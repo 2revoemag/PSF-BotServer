@@ -15,8 +15,9 @@ A controlled demonstration of the bot combat system at a single tower location. 
 
 ### Step 1: Choose a Tower
 Pick a tower with good sight lines and clear boundaries:
-- [ ] Select tower location (user to provide)
-- [ ] Capture tower coordinates via `/loc` command in-game
+- [x] Select continent: **Hossin** (jungle continent with interesting terrain)
+- [ ] Select specific tower location (user to provide)
+- [ ] Capture tower coordinates via `!locrec <note>` command in-game
 
 ### Step 2: Define Combat Arena
 Capture boundary coordinates by walking the perimeter:
@@ -102,7 +103,7 @@ def isInExclusionZone(pos: Vector3, zones: Seq[ExclusionZone]): Boolean = {
 - Weapon drawn, muzzle flash, sound effects
 
 ### Known Limitations for Demo
-- [ ] No tracers (investigating - may be client-side animation issue)
+- [x] ~~No tracers~~ **RESOLVED** - tracers working! (see notes below)
 - [ ] Bots don't navigate around obstacles (random wandering only)
 - [ ] Single hardcoded arena location
 
@@ -149,32 +150,37 @@ When ready to capture tower coordinates:
 
 ## Tracer Investigation Notes
 
-**Current status**: No visible tracers despite multiple approaches
+**Status: RESOLVED** ✓
 
-**What we've tried:**
-- AvatarEvents with AvatarAction.ChangeFireState_Start
-- LocalEvents with LocalAction.SendResponse(ChangeFireStateMessage_Start)
-- Adding WeaponFireMessage broadcast
+### Root Cause
+The client caches player orientation when `ChangeFireStateMessage_Start` is received
+and uses that cached orientation for tracer direction rendering. Our original code
+sent the fire state message BEFORE updating/broadcasting the bot's orientation.
 
-**Hypothesis**:
-Tracers for hitscan weapons may be purely client-side, calculated from:
-1. ChangeFireState (weapon is firing)
-2. PlayerState position/orientation
-3. Client renders tracer based on facing direction
+### Solution
+In `startFiring()`:
+1. Calculate yaw to face target
+2. Update `player.Orientation` to face target
+3. Broadcast `PlayerState` with correct orientation
+4. **THEN** send `ChangeFireStateMessage_Start`
 
-**Why it might not work for bots**:
-- Missing animation state that triggers tracer rendering
-- Client needs specific packet sequence it's not receiving
-- Suppressor weapon specifically may handle differently
+Also fixed `facingYawUpper` in PlayerState to be 0 (relative to body) instead of
+the absolute yaw value.
 
-**Lower priority for now** - focus on arena system first.
+### Key Learnings
+- Tracers use LocalEvents like turrets (`LocalAction.SendResponse(ChangeFireStateMessage_Start)`)
+- The firing flag (`ChangeFireStateMessage_Start`) MUST be sent for tracers to render
+- Orientation MUST be correct BEFORE fire state is sent - client caches it
+- `facingYawUpper` is relative to `facingYaw`, not absolute (0 = looking straight ahead)
 
 ---
 
 ## Status
 
+- [x] Tracers working correctly
+- [x] Continent selected: Hossin
 - [ ] Tower location selected
-- [ ] Coordinates captured
+- [ ] Coordinates captured via !locrec
 - [ ] Arena bounds implemented
 - [ ] Exclusion zones defined (optional)
 - [ ] Demo tested and working

@@ -140,8 +140,9 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 - [x] Faction-specific spawn commands (!botnc, !bottr, !botvs) - DONE
 - [x] AI toggle (!boton / !botoff) - DONE
 - [x] Tracers working! (firing flag must be set before shooting) - DONE
+- [x] Tracer DIRECTION fixed! (orientation must be sent before fire state) - DONE
 - [x] !locrec command for coordinate capture - DONE
-- [ ] **Tower Arena Demo** - Manual coordinate capture for controlled showcase (see TOWER_DEMO.md)
+- [ ] **Tower Arena Demo** - Hossin selected, awaiting coordinate capture (see TOWER_DEMO.md)
 - [ ] Terrain following (Z height)
 - [ ] Bot class differentiation (loadouts will be revised for prod)
 - [ ] Population scaling (auto-spawn/despawn based on real players)

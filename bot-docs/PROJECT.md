@@ -134,12 +134,13 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 
 ### Known Limitations (POC)
 - **Wall shooting**: Bots can shoot through walls (no server-side collision data)
-- **No tracers**: Visual bullet trails not rendering (investigating)
 - **Random movement**: No pathfinding, just wandering
 
 ### Next Steps
 - [x] Faction-specific spawn commands (!botnc, !bottr, !botvs) - DONE
 - [x] AI toggle (!boton / !botoff) - DONE
+- [x] Tracers working! (firing flag must be set before shooting) - DONE
+- [x] !locrec command for coordinate capture - DONE
 - [ ] **Tower Arena Demo** - Manual coordinate capture for controlled showcase (see TOWER_DEMO.md)
 - [ ] Terrain following (Z height)
 - [ ] Bot class differentiation (loadouts will be revised for prod)

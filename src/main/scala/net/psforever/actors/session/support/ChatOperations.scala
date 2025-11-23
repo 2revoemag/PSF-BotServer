@@ -1412,17 +1412,24 @@ class ChatOperations(
   }
 
   def customCommandBot(
-                                session: Session
+                                session: Session,
+                                faction: PlanetSideEmpire.Value
                               ): Boolean = {
     val zone = session.zone
     val player = session.player
     val spawnPos = player.Position + Vector3(2, 2, 0) // Spawn slightly offset from player
 
-    // Use the zone's persistent BotManager
-    zone.BotManager ! BotManager.SpawnBot(player.Faction, spawnPos)
+    // Use the zone's persistent BotManager with specified faction
+    zone.BotManager ! BotManager.SpawnBot(faction, spawnPos)
 
+    val factionName = faction match {
+      case PlanetSideEmpire.TR => "TR"
+      case PlanetSideEmpire.NC => "NC"
+      case PlanetSideEmpire.VS => "VS"
+      case _ => "Unknown"
+    }
     sendResponse(
-      ChatMsg(CMT_GMOPEN, wideContents = false, "Server", s"Spawning bot at $spawnPos", None)
+      ChatMsg(CMT_GMOPEN, wideContents = false, "Server", s"Spawning $factionName bot at $spawnPos", None)
     )
     true
   }

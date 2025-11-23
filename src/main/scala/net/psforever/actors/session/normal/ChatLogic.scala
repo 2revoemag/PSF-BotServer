@@ -8,7 +8,7 @@ import net.psforever.actors.session.support.{ChatFunctions, ChatOperations, Sess
 import net.psforever.objects.Session
 import net.psforever.packet.game.{ChatMsg, ServerType, SetChatFilterMessage}
 import net.psforever.services.chat.{DefaultChannel, OutfitChannel, SquadChannel}
-import net.psforever.types.ChatMessageType
+import net.psforever.types.{ChatMessageType, PlanetSideEmpire}
 import net.psforever.types.ChatMessageType.{CMT_TOGGLESPECTATORMODE, CMT_TOGGLE_GM}
 import net.psforever.util.Config
 
@@ -142,7 +142,10 @@ class ChatLogic(val ops: ChatOperations, implicit val context: ActorContext) ext
         case "macro" => ops.customCommandMacro(session, params)
         case "progress" => ops.customCommandProgress(session, params)
         case "squad" => ops.customCommandSquad(params)
-        case "bot" => ops.customCommandBot(session)
+        case "bot" => ops.customCommandBot(session, session.player.Faction)
+        case "botnc" => ops.customCommandBot(session, PlanetSideEmpire.NC)
+        case "bottr" => ops.customCommandBot(session, PlanetSideEmpire.TR)
+        case "botvs" => ops.customCommandBot(session, PlanetSideEmpire.VS)
         case _ =>
           // command was not handled
           sendResponse(

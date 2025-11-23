@@ -8,7 +8,7 @@ import net.psforever.actors.session.AvatarActor
 import net.psforever.objects.avatar.Avatar
 import net.psforever.objects.guid.{GUIDTask, TaskWorkflow}
 import net.psforever.objects.zones.Zone
-import net.psforever.objects.{Player, Tool}
+import net.psforever.objects.{Default, Player, Tool}
 import net.psforever.objects.sourcing.{PlayerSource, SourceEntry}
 import net.psforever.objects.vital.Vitality
 import net.psforever.objects.vital.base.DamageResolution
@@ -136,6 +136,7 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = position
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
+    player.DrawnSlot = 2 // Draw suppressor (slot 2) so bot can shoot
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -178,6 +179,13 @@ class BotManager(zone: Zone) extends Actor {
         None
       )
     )
+
+    // Broadcast that bot has drawn a weapon (slot 2 = suppressor)
+    zone.AvatarEvents ! AvatarServiceMessage(
+      zone.id,
+      AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, player.LastDrawnSlot)
+    )
+    log.info(s"$name has drawn a suppressor from its holster")
 
     // Initialize movement state
     val moveAngle = random.nextFloat() * 360f
@@ -284,6 +292,7 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = info.spawnPosition
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
+    player.DrawnSlot = 2 // Draw suppressor (slot 2) so bot can shoot
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -456,6 +465,8 @@ class BotManager(zone: Zone) extends Actor {
       // Look for new target
       findTarget(botState) match {
         case Some(newTarget) =>
+          val distance = Vector3.Distance(player.Position, newTarget.Position)
+          log.info(s"${botState.name} acquired target ${newTarget.Name} at distance ${distance.toInt}m")
           combat = combat.copy(
             target = Some(newTarget.GUID),
             targetAcquiredTick = tickCount,
@@ -478,7 +489,7 @@ class BotManager(zone: Zone) extends Actor {
         if (ticksSinceAcquired >= recognitionTime) {
           // Start firing if not already
           if (!combat.isFiring) {
-            startFiring(botState)
+            startFiring(botState, targetPlayer.Name)
             combat = combat.copy(isFiring = true, burstStartTick = tickCount, shotsFired = 0)
           }
 
@@ -519,8 +530,9 @@ class BotManager(zone: Zone) extends Actor {
   }
 
   /** Broadcast that bot started firing */
-  private def startFiring(botState: BotState): Unit = {
+  private def startFiring(botState: BotState, targetName: String): Unit = {
     getWeapon(botState.player).foreach { weapon =>
+      log.info(s"${botState.name} is attacking $targetName")
       zone.AvatarEvents ! AvatarServiceMessage(
         zone.id,
         AvatarAction.ChangeFireState_Start(botState.player.GUID, weapon.GUID)
@@ -569,14 +581,19 @@ class BotManager(zone: Zone) extends Actor {
         DamageResolution.Hit
       )
 
-      // Send damage to target's actor (calculate() returns the function needed by Vitality.Damage)
-      target.Actor ! Vitality.Damage(damageInteraction.calculate())
+      // Validate target can receive damage (has a proper Actor)
+      if (target.CanDamage && target.Actor != Default.Actor) {
+        // Send damage to target's actor (calculate() returns the function needed by Vitality.Damage)
+        target.Actor ! Vitality.Damage(damageInteraction.calculate())
 
-      // Send hit hint to target (so they know they're being shot)
-      zone.AvatarEvents ! AvatarServiceMessage(
-        zone.id,
-        AvatarAction.HitHint(botState.player.GUID, target.GUID)
-      )
+        // Send hit hint to target (so they know they're being shot)
+        zone.AvatarEvents ! AvatarServiceMessage(
+          zone.id,
+          AvatarAction.HitHint(botState.player.GUID, target.GUID)
+        )
+      } else {
+        log.warn(s"${botState.name} cannot damage ${target.Name} - target has no valid Actor")
+      }
     }
   }
 

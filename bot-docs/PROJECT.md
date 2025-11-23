@@ -18,6 +18,7 @@ Bringing bot support to PlanetSide through the PSForever server emulator project
 |----------|---------|
 | `HANDOFF.md` | **Start here** - Context for new Claude instances |
 | `PROJECT.md` | This file - Overview and status |
+| `TOWER_DEMO.md` | **NEW** - Controlled arena demo plan |
 | `GAME_FEEL.md` | Behavioral spec from user's notes |
 | `ARCHITECTURE.md` | Technical design decisions |
 | `CODEBASE_MAP.md` | Key files with line numbers |
@@ -131,11 +132,23 @@ See `CODEBASE_MAP.md` for file locations and line numbers.
 - PlayerControl works perfectly with stub BotAvatarActor
 - Must use `registerAvatar()` not `registerPlayer()` (locker needs GUID)
 
+### Known Limitations (POC)
+- **Wall shooting**: Bots can shoot through walls (no server-side collision data)
+- **No tracers**: Visual bullet trails not rendering (investigating)
+- **Random movement**: No pathfinding, just wandering
+
 ### Next Steps
-- [ ] Faction-specific spawn commands (!botnc, !bottr, !botvs) - **IN PROGRESS**
+- [x] Faction-specific spawn commands (!botnc, !bottr, !botvs) - DONE
+- [x] AI toggle (!boton / !botoff) - DONE
+- [ ] **Tower Arena Demo** - Manual coordinate capture for controlled showcase (see TOWER_DEMO.md)
 - [ ] Terrain following (Z height)
 - [ ] Bot class differentiation (loadouts will be revised for prod)
 - [ ] Population scaling (auto-spawn/despawn based on real players)
+
+### Long-term (Post-POC)
+- [ ] UBR mesh extraction for world collision
+- [ ] Navmesh generation for pathfinding
+- [ ] Proper LOS (line-of-sight) checks
 
 ---
 

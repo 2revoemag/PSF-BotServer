@@ -586,13 +586,17 @@ class BotManager(zone: Zone) extends Actor {
   private def startFiring(botState: BotState, target: Player): Unit = {
     val player = botState.player
 
-    // Calculate yaw to face target
+    // Calculate yaw (horizontal) and pitch (vertical) to face target
     val dx = target.Position.x - player.Position.x
     val dy = target.Position.y - player.Position.y
+    val dz = target.Position.z - player.Position.z  // Height difference
+    val horizontalDist = math.sqrt(dx * dx + dy * dy)
+
     val targetYaw = math.toDegrees(math.atan2(dx, dy)).toFloat
+    val targetPitch = math.toDegrees(math.atan2(dz, horizontalDist)).toFloat
 
     // Update bot's orientation to face target
-    player.Orientation = Vector3(0, 0, targetYaw)
+    player.Orientation = Vector3(0, targetPitch, targetYaw)
 
     // Broadcast PlayerState with correct orientation BEFORE fire state
     // This ensures client has correct facing when fire state arrives
@@ -603,9 +607,9 @@ class BotManager(zone: Zone) extends Actor {
         player.GUID,
         player.Position,
         player.Velocity,
-        targetYaw,  // facingYaw - body direction
-        0f,         // facingPitch
-        0f,         // facingYawUpper - relative to body, 0 = looking straight
+        targetYaw,    // facingYaw - body direction (horizontal)
+        targetPitch,  // facingPitch - vertical aim angle
+        0f,           // facingYawUpper - relative to body, 0 = looking straight
         timestamp,
         is_crouching = false,
         is_jumping = false,

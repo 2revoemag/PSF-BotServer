@@ -16,7 +16,9 @@ import net.psforever.objects.vital.interaction.DamageInteraction
 import net.psforever.objects.vital.projectile.ProjectileReason
 import net.psforever.objects.ballistics.Projectile
 import net.psforever.packet.game.objectcreate.BasicCharacterData
+import net.psforever.packet.game.{ChangeFireStateMessage_Start, ChangeFireStateMessage_Stop, WeaponFireMessage, ProjectileCharacteristics}
 import net.psforever.services.avatar.{AvatarAction, AvatarServiceMessage}
+import net.psforever.services.local.{LocalAction, LocalServiceMessage}
 import net.psforever.types.{CharacterSex, CharacterVoice, PlanetSideEmpire, PlanetSideGUID, Vector3}
 import net.psforever.util.DefinitionUtil
 import net.psforever.zones.Zones
@@ -574,13 +576,14 @@ class BotManager(zone: Zone) extends Actor {
     combat
   }
 
-  /** Broadcast that bot started firing */
+  /** Broadcast that bot started firing - uses LocalEvents like turrets for proper client rendering */
   private def startFiring(botState: BotState, targetName: String): Unit = {
     getWeapon(botState.player).foreach { weapon =>
       log.info(s"${botState.name} is attacking $targetName")
-      zone.AvatarEvents ! AvatarServiceMessage(
+      // Use LocalEvents like turrets do for proper tracer rendering
+      zone.LocalEvents ! LocalServiceMessage(
         zone.id,
-        AvatarAction.ChangeFireState_Start(botState.player.GUID, weapon.GUID)
+        LocalAction.SendResponse(ChangeFireStateMessage_Start(weapon.GUID))
       )
     }
   }
@@ -588,9 +591,9 @@ class BotManager(zone: Zone) extends Actor {
   /** Broadcast that bot stopped firing */
   private def stopFiring(botState: BotState): Unit = {
     getWeapon(botState.player).foreach { weapon =>
-      zone.AvatarEvents ! AvatarServiceMessage(
+      zone.LocalEvents ! LocalServiceMessage(
         zone.id,
-        AvatarAction.ChangeFireState_Stop(botState.player.GUID, weapon.GUID)
+        LocalAction.SendResponse(ChangeFireStateMessage_Stop(weapon.GUID))
       )
     }
   }
@@ -600,6 +603,26 @@ class BotManager(zone: Zone) extends Actor {
     getWeapon(botState.player).foreach { weapon =>
       val projectileType = weapon.Projectile
       val fireMode = weapon.FireMode
+      val player = botState.player
+
+      // Broadcast WeaponFireMessage so clients can render tracers
+      val timestamp = (System.currentTimeMillis() % 1024).toInt
+      zone.LocalEvents ! LocalServiceMessage(
+        zone.id,
+        LocalAction.SendResponse(WeaponFireMessage(
+          seq_time = timestamp,
+          weapon_guid = weapon.GUID,
+          projectile_guid = PlanetSideGUID(0), // Not tracking individual projectiles
+          shot_origin = player.Position + Vector3.z(1f), // Offset up to chest height
+          unk1 = 0,
+          spread_a = 65535, // Max accuracy
+          spread_b = 0,
+          max_distance = 100,
+          unk5 = 255,
+          projectile_type = ProjectileCharacteristics.Standard,
+          thrown_projectile_vel = None
+        ))
+      )
 
       // Create a projectile for damage calculation
       val projectile = Projectile(
@@ -607,10 +630,10 @@ class BotManager(zone: Zone) extends Actor {
         tool_def = weapon.Definition,
         fire_mode = fireMode,
         mounted_in = None,
-        owner = PlayerSource(botState.player),
+        owner = PlayerSource(player),
         attribute_to = weapon.Definition.ObjectId,
-        shot_origin = botState.player.Position,
-        shot_angle = botState.player.Orientation,
+        shot_origin = player.Position,
+        shot_angle = player.Orientation,
         shot_velocity = None
       )
 
@@ -634,7 +657,7 @@ class BotManager(zone: Zone) extends Actor {
         // Send hit hint to target (so they know they're being shot)
         zone.AvatarEvents ! AvatarServiceMessage(
           zone.id,
-          AvatarAction.HitHint(botState.player.GUID, target.GUID)
+          AvatarAction.HitHint(player.GUID, target.GUID)
         )
       } else {
         log.warn(s"${botState.name} cannot damage ${target.Name} - target has no valid Actor")

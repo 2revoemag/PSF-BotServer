@@ -1434,6 +1434,21 @@ class ChatOperations(
     true
   }
 
+  def customCommandBotAI(
+                          session: Session,
+                          enabled: Boolean
+                        ): Boolean = {
+    val zone = session.zone
+    val state = if (enabled) "ON" else "OFF"
+
+    zone.BotManager ! BotManager.SetAIEnabled(enabled)
+
+    sendResponse(
+      ChatMsg(CMT_GMOPEN, wideContents = false, "Server", s"Bot AI is now $state", None)
+    )
+    true
+  }
+
   override protected[session] def stop(): Unit = {
     silenceTimer.cancel()
     chatService ! ChatService.LeaveAllChannels(chatServiceAdapter)

@@ -146,6 +146,8 @@ class ChatLogic(val ops: ChatOperations, implicit val context: ActorContext) ext
         case "botnc" => ops.customCommandBot(session, PlanetSideEmpire.NC)
         case "bottr" => ops.customCommandBot(session, PlanetSideEmpire.TR)
         case "botvs" => ops.customCommandBot(session, PlanetSideEmpire.VS)
+        case "boton" => ops.customCommandBotAI(session, enabled = true)
+        case "botoff" => ops.customCommandBotAI(session, enabled = false)
         case _ =>
           // command was not handled
           sendResponse(

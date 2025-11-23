@@ -37,6 +37,9 @@ class BotManager(zone: Zone) extends Actor {
   private val bots: mutable.Map[Int, BotState] = mutable.Map()
   private val random = new Random()
 
+  // AI toggle - starts OFF so bots spawn passive
+  private var aiEnabled: Boolean = false
+
   // Pool of available bot IDs (DB IDs 2-301 = xxBOTxxTestBot1 through xxBOTxxTestBot300)
   private val availableBotIds: mutable.Queue[Int] = mutable.Queue.from(2 to 301)
   private val usedBotIds: mutable.Set[Int] = mutable.Set()
@@ -97,6 +100,19 @@ class BotManager(zone: Zone) extends Actor {
 
     case DespawnAllBots =>
       bots.keys.toSeq.foreach(despawnBot)
+
+    case SetAIEnabled(enabled) =>
+      aiEnabled = enabled
+      val state = if (enabled) "ON" else "OFF"
+      log.info(s"Bot AI is now $state (${bots.size} bots affected)")
+      // If turning off, stop all bots from firing
+      if (!enabled) {
+        bots.values.foreach { botState =>
+          if (botState.combat.isFiring) {
+            stopFiring(botState)
+          }
+        }
+      }
 
     case Tick =>
       tickCount += 1
@@ -180,13 +196,7 @@ class BotManager(zone: Zone) extends Actor {
       )
     )
 
-    // Broadcast that bot has drawn a weapon (slot 2 = suppressor)
-    zone.AvatarEvents ! AvatarServiceMessage(
-      zone.id,
-      AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, player.LastDrawnSlot)
-    )
-    log.info(s"$name has drawn a suppressor from its holster")
-
+    // Don't broadcast weapon draw yet - wait for readyTick to let client fully load
     // Initialize movement state
     val moveAngle = random.nextFloat() * 360f
     val moveState = MovementState(
@@ -195,7 +205,9 @@ class BotManager(zone: Zone) extends Actor {
       moveUntilTick = tickCount + 30 + random.nextInt(50)
     )
 
-    bots(botId) = BotState(botId, name, avatar, player, botAvatarActor, moveState, CombatState(), player.Position)
+    // Set readyTick 2 seconds from now (20 ticks) to let client fully load before combat
+    val readyAt = tickCount + 20
+    bots(botId) = BotState(botId, name, avatar, player, botAvatarActor, moveState, CombatState(), player.Position, readyAt, weaponDrawn = false)
     log.info(s"Bot '$name' spawned successfully with GUID ${player.GUID} (${bots.size} bots active, ${availableBotIds.size} available)")
   }
 
@@ -318,13 +330,33 @@ class BotManager(zone: Zone) extends Actor {
     bots.values.foreach { botState =>
       val player = botState.player
       if (player.isAlive) {
-        // Update combat first (finds targets, fires)
-        val newCombatState = updateCombat(botState)
-        val updatedBotState = botState.copy(combat = newCombatState)
+        var currentBotState = botState
 
-        // Update movement (will face target if in combat)
-        val newMoveState = updateMovement(updatedBotState, player)
-        bots(botState.id) = updatedBotState.copy(movement = newMoveState)
+        // Check if bot is ready (spawn delay passed) and weapon not yet drawn
+        val isReady = tickCount >= botState.readyTick
+        if (isReady && !botState.weaponDrawn) {
+          // Now broadcast the weapon draw - client has had time to load
+          zone.AvatarEvents ! AvatarServiceMessage(
+            zone.id,
+            AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, player.LastDrawnSlot)
+          )
+          log.info(s"${botState.name} has drawn a suppressor from its holster")
+          currentBotState = currentBotState.copy(weaponDrawn = true)
+        }
+
+        // Only update combat and movement if AI is enabled AND bot is ready
+        if (aiEnabled && isReady) {
+          // Update combat (finds targets, fires)
+          val newCombatState = updateCombat(currentBotState)
+          currentBotState = currentBotState.copy(combat = newCombatState)
+
+          // Update movement (will face target if in combat)
+          val newMoveState = updateMovement(currentBotState, player)
+          currentBotState = currentBotState.copy(movement = newMoveState)
+        }
+        // If AI disabled or not ready, bot just stands still (no movement/combat updates)
+
+        bots(botState.id) = currentBotState
 
         zone.AvatarEvents ! AvatarServiceMessage(
           zone.id,
@@ -341,7 +373,7 @@ class BotManager(zone: Zone) extends Actor {
             jump_thrust = false,
             is_cloaked = false,
             spectator = false,
-            weaponInHand = true
+            weaponInHand = currentBotState.weaponDrawn
           )
         )
       }
@@ -640,6 +672,7 @@ object BotManager {
   final case class SpawnBot(faction: PlanetSideEmpire.Value, position: Vector3) extends Command
   final case class DespawnBot(botId: Int) extends Command
   case object DespawnAllBots extends Command
+  final case class SetAIEnabled(enabled: Boolean) extends Command
   private case object Tick extends Command
 
   private[bot] final case class CompleteSpawn(
@@ -677,7 +710,9 @@ object BotManager {
     avatarActor: ActorRef[AvatarActor.Command],
     movement: MovementState = MovementState(),
     combat: CombatState = CombatState(),
-    spawnPosition: Vector3 = Vector3.Zero
+    spawnPosition: Vector3 = Vector3.Zero,
+    readyTick: Int = 0,         // Tick when bot is ready for combat (after spawn delay)
+    weaponDrawn: Boolean = false // Whether weapon draw has been broadcast to clients
   )
 
   case class TapOutInfo(

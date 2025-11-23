@@ -20,6 +20,7 @@ import net.psforever.services.avatar.{AvatarAction, AvatarServiceMessage}
 import net.psforever.types.{CharacterSex, CharacterVoice, PlanetSideEmpire, PlanetSideGUID, Vector3}
 import net.psforever.util.DefinitionUtil
 import net.psforever.zones.Zones
+import net.psforever.objects.serverobject.interior.Sidedness
 
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -152,7 +153,7 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = position
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
-    player.DrawnSlot = 2 // Draw suppressor (slot 2) so bot can shoot
+    // DON'T set DrawnSlot here - spawn with hands down, draw weapon after delay
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -304,7 +305,7 @@ class BotManager(zone: Zone) extends Actor {
     player.Position = info.spawnPosition
     player.Orientation = Vector3(0, 0, 0)
     DefinitionUtil.applyDefaultLoadout(player)
-    player.DrawnSlot = 2 // Draw suppressor (slot 2) so bot can shoot
+    // DON'T set DrawnSlot here - spawn with hands down, draw weapon after delay
     player.Spawn()
 
     val typedSystem = context.system.toTyped
@@ -335,10 +336,13 @@ class BotManager(zone: Zone) extends Actor {
         // Check if bot is ready (spawn delay passed) and weapon not yet drawn
         val isReady = tickCount >= botState.readyTick
         if (isReady && !botState.weaponDrawn) {
+          // Set DrawnSlot to weapon slot 2 (suppressor), then broadcast
+          val previousSlot = player.DrawnSlot
+          player.DrawnSlot = 2
           // Now broadcast the weapon draw - client has had time to load
           zone.AvatarEvents ! AvatarServiceMessage(
             zone.id,
-            AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, player.LastDrawnSlot)
+            AvatarAction.ObjectHeld(player.GUID, player.DrawnSlot, previousSlot)
           )
           log.info(s"${botState.name} has drawn a suppressor from its holster")
           currentBotState = currentBotState.copy(weaponDrawn = true)
@@ -433,13 +437,15 @@ class BotManager(zone: Zone) extends Actor {
   private def findTarget(botState: BotState): Option[Player] = {
     val player = botState.player
     val botFaction = botState.avatar.faction
+    val botSide = player.WhichSide
 
     zone.LivePlayers
       .filter { p =>
         p.isAlive &&
         p.Faction != botFaction &&
         !p.Name.startsWith("xxBOTxx") && // Don't target other bots for now
-        Vector3.Distance(player.Position, p.Position) <= MaxEngagementRange
+        Vector3.Distance(player.Position, p.Position) <= MaxEngagementRange &&
+        Sidedness.equals(botSide, p.WhichSide) // Must be on same side of walls (LOS check)
       }
       .sortBy(p => Vector3.Distance(player.Position, p.Position))
       .headOption
@@ -486,7 +492,9 @@ class BotManager(zone: Zone) extends Actor {
     // Find or validate target
     val currentTarget = combat.target.flatMap(guid => zone.LivePlayers.find(_.GUID == guid))
     val targetStillValid = currentTarget.exists { t =>
-      t.isAlive && Vector3.Distance(player.Position, t.Position) <= MaxEngagementRange
+      t.isAlive &&
+      Vector3.Distance(player.Position, t.Position) <= MaxEngagementRange &&
+      Sidedness.equals(player.WhichSide, t.WhichSide) // LOS check - same side of walls
     }
 
     if (!targetStillValid) {
